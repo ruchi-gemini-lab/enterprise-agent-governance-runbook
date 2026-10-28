@@ -1,0 +1,38 @@
+# Terraform binaries & state
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Python & virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+
+# Local environment & cloud shell artifacts
+.lab_env
+README-cloudshell.txt
+.gemini/
+.local/
+.cache/
+.config/
+.gsutil/
+.docker/
+.npm/
+.ssh/
+.bashrc
+.profile
+.bash_logout
+.customize_environment
