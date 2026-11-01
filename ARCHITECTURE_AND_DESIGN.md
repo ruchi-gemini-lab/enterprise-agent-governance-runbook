@@ -1,6 +1,13 @@
 # Enterprise Agent Governance on Google Cloud — High-Level Architecture & System Design
 
 > **Scope:** Zero-Trust Network Perimeter Control using **Google Cloud Agent Gateway**, Centralized Service Discovery via **Agent Registry**, **Identity-Aware Proxy (IAP)** Workload Identity Egress Authorization, and Inline AI Content Safety Guardrails with **Model Armor** and **Sensitive Data Protection (DLP)**.
+>
+> **Related Documents in Suite:**
+> - [`HIGH_LEVEL_DESIGN.md`](./HIGH_LEVEL_DESIGN.md) — Detailed High-Level Design (HLD)
+> - [`LOW_LEVEL_DESIGN.md`](./LOW_LEVEL_DESIGN.md) — Code & Infrastructure Low-Level Design (LLD)
+> - [`WORKFLOW.md`](./WORKFLOW.md) — End-to-End Workflows, State Machines & Sequence Diagrams
+> - [`RUNBOOK.md`](./RUNBOOK.md) — Step-by-Step Operational Runbook (Tasks 1–8)
+> - [`Enterprise_Agent_Governance_Runbook_HLD_LLD_Workflow.docx`](./Enterprise_Agent_Governance_Runbook_HLD_LLD_Workflow.docx) — Standalone Printable Word Document
 
 ---
 

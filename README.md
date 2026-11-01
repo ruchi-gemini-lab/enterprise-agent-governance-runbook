@@ -1,12 +1,35 @@
-# Enterprise Agent Governance on Google Cloud — Architecture, Design & Step-by-Step Runbook
+# Enterprise Agent Governance on Google Cloud — Runbook, HLD, LLD & Workflow Suite
 
-> **Documents Included in this Repository:**
-> - [`ARCHITECTURE_AND_DESIGN.md`](./ARCHITECTURE_AND_DESIGN.md) — High-Level System Architecture, OSI 7-Layer Governance Mapping, Dual OIDC Routing Design (Route B vs. Route A), Sequence Diagrams, and IAM/Terraform Security Matrices.
-> - [`RUNBOOK.md`](./RUNBOOK.md) — Complete Step-by-Step Execution Runbook with exact CLI commands, JSON schemas, Terraform invocations, and verified lab outputs.
-> - [`terraform/`](./terraform/) — Modular Terraform configuration for VPC Networking, Agent Registry, Agent Gateway (`AGENT_TO_ANYWHERE`), IAP `REQUEST_AUTHZ`, and Model Armor + Cloud DLP `CONTENT_AUTHZ`.
-> - [`agents/hello_agent/`](./agents/hello_agent/) — Google ADK Agent (`hello-world-agent`) deployed to Vertex AI Agent Runtime.
-> - [`mcp-servers/sample-tool/`](./mcp-servers/sample-tool/) — FastMCP JSON-RPC 2.0 Tool Server (`agents-everywhere-sample-tool`) deployed to Cloud Run.
-> - [`scripts/lab-cleanup.sh`](./scripts/lab-cleanup.sh) — Automated resource cleanup script for Reasoning Engines, Authz Policies, and Agent Gateways.
+[![Google Cloud](https://img.shields.io/badge/Google_Cloud-Vertex_AI_&_Cloud_Run-4285F4?logo=googlecloud&logoColor=white)](https://cloud.google.com/)
+[![Agent Gateway](https://img.shields.io/badge/Network_Services-Agent_Gateway_(AGENT__TO__ANYWHERE)-0F9D58)](https://cloud.google.com/)
+[![IAP Zero Trust](https://img.shields.io/badge/Security-IAP_REQUEST__AUTHZ_&_SPIFFE-FBBC04)](https://cloud.google.com/iap)
+[![Model Armor & DLP](https://img.shields.io/badge/AI_Safety-Model_Armor_&_Cloud_DLP-EA4335)](https://cloud.google.com/)
+
+Comprehensive engineering documentation, **High-Level Design (HLD)**, **Low-Level Design (LLD)**, **End-to-End Workflows**, **Step-by-Step Operational Runbook**, and **Infrastructure-as-Code / Application Reference** for the **Enterprise Agent Governance on Google Cloud** challenge lab (`hello-world-agent` + `agents-everywhere-sample-tool`).
+
+---
+
+## 📚 Documentation Suite Index
+
+| Document | Format | Description |
+| :--- | :---: | :--- |
+| **[`RUNBOOK.md`](./RUNBOOK.md)** | Markdown | **Step-by-Step Operational Runbook (Tasks 1–8)** — Copy-pasteable commands, Terraform variable switches, `gcloud alpha agent-registry` & REST API `curl` equivalents, verification checks, expected JSON outputs, and troubleshooting guide. |
+| **[`HIGH_LEVEL_DESIGN.md`](./HIGH_LEVEL_DESIGN.md)** | Markdown | **High-Level Design (HLD)** — Architectural vision, end-to-end system topology, OSI 7-Layer Model Mapping for Agent Governance, Dual OIDC Routing Architecture (Route B Native Workload Identity vs. Route A Service Account Impersonation), Two-Tier SPIFFE Workload Identity design, and Defense-in-Depth Content Safety. |
+| **[`LOW_LEVEL_DESIGN.md`](./LOW_LEVEL_DESIGN.md)** | Markdown | **Low-Level Design (LLD)** — Code-level & infrastructure specifications across all 4 Terraform modules (`networking`, `registry`, `gateway`, `model_armor`), the ADK `RootAgent` (`agents/hello_agent/app/agent.py`), the FastMCP server (`mcp-servers/sample-tool/server.py`), and `scripts/lab-cleanup.sh`. |
+| **[`WORKFLOW.md`](./WORKFLOW.md)** | Markdown | **End-to-End Workflows & Sequence Diagrams** — Workshop progression across Tasks 1–8, progressive policy enforcement state machine (`DRY_RUN` $\rightarrow$ `REQUEST_AUTHZ` $\rightarrow$ `CONTENT_AUTHZ`), OSI 7-layer packet traversal, and sequence diagrams for authorized tool execution, prompt injection blocking (`HTTP 403`), and DLP SSN redaction (`[US_SOCIAL_SECURITY_NUMBER]`). |
+| **[`ARCHITECTURE_AND_DESIGN.md`](./ARCHITECTURE_AND_DESIGN.md)** | Markdown | **Consolidated Architecture & Design Overview** — Unified executive reference combining the system topology, OSI 7-layer governance matrix, sequence flows, and IAM security policy matrix. |
+| **[`Enterprise_Agent_Governance_Runbook_HLD_LLD_Workflow.docx`](./Enterprise_Agent_Governance_Runbook_HLD_LLD_Workflow.docx)** | Word (`.docx`) | **Standalone Printable Document** — Complete offline Word document containing the Executive Summary, High-Level Design, Low-Level Design, End-to-End Workflows, and Step-by-Step Runbook (Tasks 1–8). |
+
+---
+
+## 📂 Repository Codebase Structure
+
+| Directory / File | Component | Purpose |
+| :--- | :--- | :--- |
+| [`terraform/`](./terraform/) | Infrastructure-as-Code | Root Terraform orchestrator (`main.tf`) and 4 child modules: [`networking/`](./terraform/networking/), [`registry/`](./terraform/registry/), [`gateway/`](./terraform/gateway/), and [`model-armor/`](./terraform/model-armor/). |
+| [`agents/hello_agent/`](./agents/hello_agent/) | Vertex AI Agent Runtime (`hello-world-agent`) | Google ADK agent (`RootAgent`) that discovers MCP tools from Agent Registry, mints SPIFFE OIDC tokens, and invokes MCP tools through `gateway-egress`. |
+| [`mcp-servers/sample-tool/`](./mcp-servers/sample-tool/) | Cloud Run MCP Server (`agents-everywhere-sample-tool`) | FastMCP streamable HTTP server exposing `get_capital`, `get_hostname`, and `get_santized_record` over JSON-RPC 2.0 on port `8080`. |
+| [`scripts/lab-cleanup.sh`](./scripts/lab-cleanup.sh) | Teardown Automation | 3-phase cleanup script that deletes Vertex AI Reasoning Engines, Network Security `AuthzPolicies` / `AuthzExtensions`, and the `gateway-egress` Agent Gateway. |
 
 ---
 
@@ -94,7 +117,7 @@ flowchart TB
 
 ---
 
-## 3. OSI 7-Layer Model Mapping & Dual Routing Design
+## 3. OSI 7-Layer Model Mapping & Dual Routing Summary
 
 ### 3.1 OSI 7-Layer Governance Mapping
 
@@ -110,13 +133,13 @@ flowchart TB
 - **Route B (Native Identity Route — Default):** `hello-world-agent` obtains a native OIDC ID token directly from the GCP metadata server for its workload identity (`principal://agents.global.org-<ORG_ID>.system.id.goog/resources/aiplatform/projects/<PROJECT_NUMBER>/locations/us-central1/reasoningEngines/<INSTANCE_ID>`). Both IAP (`roles/iap.egressor` on the MCP server resource) and Cloud Run (`roles/run.invoker`) verify this native identity.
 - **Route A (Service Account Impersonation Fallback):** Activated if `/impersonate` is in the URL path, `auth=impersonate` is in the query string, or `OIDC_ROUTING_MODE=impersonate` is set. The agent uses `roles/iam.serviceAccountTokenCreator` to impersonate `${PROJECT_NUMBER}-compute@developer.gserviceaccount.com` via the IAM Credentials API.
 
-> See [`ARCHITECTURE_AND_DESIGN.md`](./ARCHITECTURE_AND_DESIGN.md) for detailed sequence diagrams of Normal Execution, Prompt Injection Intervention, and DLP SSN De-identification.
+> See [`HIGH_LEVEL_DESIGN.md`](./HIGH_LEVEL_DESIGN.md), [`LOW_LEVEL_DESIGN.md`](./LOW_LEVEL_DESIGN.md), and [`WORKFLOW.md`](./WORKFLOW.md) for full architectural specifications and sequence diagrams.
 
 ---
 
 ## 4. Quick-Reference Step-by-Step Runbook
 
-> Full details and outputs are available in [`RUNBOOK.md`](./RUNBOOK.md).
+> Full step-by-step instructions, explanations, both CLI and REST API alternatives, and verification outputs are available in **[`RUNBOOK.md`](./RUNBOOK.md)**.
 
 ### Task 1: Prepare Environment & Initialize Terraform
 ```bash
